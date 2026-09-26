@@ -1,0 +1,132 @@
+{
+  "dataset": {
+    "total_rows": 180519,
+    "total_cols": 53,
+    "feature_cols": [
+      "Type",
+      "Days for shipment (scheduled)",
+      "Benefit per order",
+      "Sales per customer",
+      "Category Name",
+      "Customer Segment",
+      "Department Name",
+      "Market",
+      "Order Item Discount",
+      "Order Item Discount Rate",
+      "Order Item Product Price",
+      "Order Item Profit Ratio",
+      "Order Item Quantity",
+      "Sales",
+      "Order Item Total",
+      "Order Profit Per Order",
+      "Order Region",
+      "Order Status",
+      "Product Price",
+      "Product Status",
+      "Shipping Mode",
+      "order_year",
+      "order_month",
+      "order_quarter",
+      "order_day",
+      "order_dayofweek",
+      "order_hour",
+      "is_expedited_schedule",
+      "profit_margin_ratio",
+      "has_discount",
+      "is_high_value",
+      "is_weekend_order"
+    ],
+    "n_features": 32,
+    "train_rows": 144415,
+    "test_rows": 36104,
+    "late_rate_pct": 54.87
+  },
+  "regression": {
+    "best_model": {
+      "model": "Random Forest",
+      "MAE": 0.9545,
+      "RMSE": 1.2592,
+      "R2": 0.3928
+    },
+    "all_models": [
+      {
+        "Model": "Random Forest",
+        "MAE": 0.9545,
+        "RMSE": 1.2592,
+        "R\u00b2": 0.3928
+      },
+      {
+        "Model": "XGBoost",
+        "MAE": 0.9714,
+        "RMSE": 1.2624,
+        "R\u00b2": 0.3896
+      },
+      {
+        "Model": "Gradient Boosting",
+        "MAE": 0.9692,
+        "RMSE": 1.2628,
+        "R\u00b2": 0.3893
+      },
+      {
+        "Model": "Linear Regression",
+        "MAE": 0.9843,
+        "RMSE": 1.2644,
+        "R\u00b2": 0.3877
+      },
+      {
+        "Model": "Baseline (Mean)",
+        "MAE": 1.4186,
+        "RMSE": 1.6158,
+        "R\u00b2": -0.0
+      }
+    ]
+  },
+  "classification": {
+    "best_model": {
+      "model": "Gradient Boosting",
+      "Accuracy": 0.7356,
+      "Precision": 0.8868,
+      "Recall": 0.5917,
+      "F1": 0.7098,
+      "ROC_AUC": 0.8004
+    },
+    "all_models": [
+      {
+        "Model": "Gradient Boosting",
+        "Accuracy": 0.7356,
+        "Precision": 0.8868,
+        "Recall": 0.5917,
+        "F1": 0.7098,
+        "ROC-AUC": 0.8004,
+        "PR-AUC": 0.8578
+      },
+      {
+        "Model": "XGBoost",
+        "Accuracy": 0.7363,
+        "Precision": 0.8914,
+        "Recall": 0.5894,
+        "F1": 0.7096,
+        "ROC-AUC": 0.798,
+        "PR-AUC": 0.8569
+      },
+      {
+        "Model": "Random Forest",
+        "Accuracy": 0.7347,
+        "Precision": 0.8898,
+        "Recall": 0.5873,
+        "F1": 0.7076,
+        "ROC-AUC": 0.7885,
+        "PR-AUC": 0.8508
+      },
+      {
+        "Model": "Logistic Regression",
+        "Accuracy": 0.6983,
+        "Precision": 0.8519,
+        "Recall": 0.5423,
+        "F1": 0.6627,
+        "ROC-AUC": 0.7377,
+        "PR-AUC": 0.8076
+      }
+    ]
+  }
+}
