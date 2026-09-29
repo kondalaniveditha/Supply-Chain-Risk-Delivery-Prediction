@@ -61,7 +61,7 @@ def para(text, bold=False, italic=False, size=12):
 
 
 def table_from_list(headers, rows):
-    t = doc.add_table(rows=1 + len(rows), cols=len(headers))
+    t = doc.add_table(rows=1, cols=len(headers))
     t.style = "Table Grid"
     hdr_cells = t.rows[0].cells
     for i, h in enumerate(headers):
@@ -104,11 +104,15 @@ run.font.color.rgb = RGBColor(0x1f, 0x23, 0x28)
 doc.add_paragraph()
 sub = doc.add_paragraph()
 sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-sub.add_run("IBM SkillsBuild Data Analytics with AI Internship\n"
-            "Graduate-Level Project Report\n\n"
-            "Author: Niveditha\n"
-            "Dataset: DataCo SMART SUPPLY CHAIN FOR BIG DATA ANALYSIS\n"
-            "Year: 2024").font.size = Pt(13)
+sub_run = sub.add_run(
+    "IBM SkillsBuild Data Analytics with AI Internship\n"
+    "Graduate-Level Project Report\n\n"
+    "Author: K. Niveditha Sai\n"
+    "Dataset: DataCo SMART SUPPLY CHAIN FOR BIG DATA ANALYSIS\n"
+    "Year: 2026"
+)
+sub_run.font.size = Pt(13)
+sub_run.font.name = "Times New Roman"
 
 doc.add_page_break()
 
@@ -116,16 +120,20 @@ doc.add_page_break()
 # ABSTRACT
 # ──────────────────────────────────────────────────────────────────
 heading("Abstract", level=1)
+clf_model_name = clf_best.get("model", "XGBoost")
+clf_roc = clf_best.get("ROC_AUC", "N/A")
+clf_f1  = clf_best.get("F1",      "N/A")
 para(
     "This report presents an end-to-end supply chain analytics and machine learning system developed "
     "for the IBM SkillsBuild Data Analytics with AI internship. Using 180,519 historical shipment "
     "records from the DataCo Global supply chain dataset, the system predicts delivery time in days "
     "(regression) and the probability of late delivery (binary classification). A strict data-leakage "
-    "prevention policy ensures that only information available before delivery is used as model input. "
+    "prevention policy ensures that only information available before delivery — and not derivable from "
+    "the delivery outcome — is used as model input. "
     "The best regression model (Random Forest) achieves RMSE = "
-    f"{reg_best.get('RMSE', 'N/A')} days and R² = {reg_best.get('R2', 'N/A')}. "
-    "The best classification model (Gradient Boosting) achieves F1 = "
-    f"{clf_best.get('F1', 'N/A')} and ROC-AUC = {clf_best.get('ROC_AUC', 'N/A')}. "
+    f"{reg_best.get('RMSE', 'N/A')} days and R\u00b2 = {reg_best.get('R2', 'N/A')}. "
+    f"The best classification model ({clf_model_name}) achieves F1 = "
+    f"{clf_f1} and ROC-AUC = {clf_roc}. "
     "SHAP-based explainability identifies scheduled delivery days, shipping mode, and order region "
     "as the most important predictive factors. An interactive Streamlit executive dashboard translates "
     "findings into actionable business recommendations."
@@ -147,7 +155,9 @@ para(
 para(
     "This project applies machine learning to the DataCo Global supply chain dataset to build "
     "a pre-delivery prediction system. The system is designed around a strict no-leakage policy: "
-    "only information available at the time of order placement is used as model input."
+    "only information available at the time of order placement is used as model input. "
+    "Columns that represent post-fulfillment outcomes or lifecycle states — including Delivery Status, "
+    "shipping date, and Order Status — are excluded from all model features."
 )
 
 # ──────────────────────────────────────────────────────────────────
@@ -161,25 +171,38 @@ para(
     italic=True
 )
 para("This decomposes into two machine learning sub-problems:")
-para("1. Regression: Predict Days for shipping (real) — the actual number of delivery days.", bold=False)
-para("2. Classification: Predict Late_delivery_risk — binary flag (0=on time, 1=late).", bold=False)
+para("1. Regression: Predict Days for shipping (real) — the actual number of delivery days.")
+para("2. Classification: Predict Late_delivery_risk — binary flag (0 = on time, 1 = late).")
 
 heading("Data Leakage Prevention Policy", level=2)
 para(
     "The following columns are strictly excluded from all model inputs because they would only "
-    "become known after the shipment outcome:"
+    "become known after the shipment outcome, or because they directly encode the target:"
 )
-doc.add_paragraph("• Delivery Status — direct consequence of delivery outcome", style="List Bullet")
-doc.add_paragraph("• shipping date (DateOrders) — actual dispatch date (post-commitment)", style="List Bullet")
-doc.add_paragraph("• Late_delivery_risk — classification target", style="List Bullet")
-doc.add_paragraph("• Days for shipping (real) — regression target", style="List Bullet")
-doc.add_paragraph("• All PII columns (email, name, address, password)", style="List Bullet")
+doc.add_paragraph(
+    "Delivery Status — direct text description of the delivery outcome",
+    style="List Bullet"
+)
+doc.add_paragraph(
+    "shipping date (DateOrders) — actual dispatch date, known only after dispatch",
+    style="List Bullet"
+)
+doc.add_paragraph(
+    "Order Status — post-fulfillment lifecycle state (COMPLETE, CLOSED, CANCELED, SUSPECTED_FRAUD, "
+    "etc.). In this dataset, CANCELED and SUSPECTED_FRAUD orders map with 100% certainty to "
+    "'Shipping canceled' (Late_delivery_risk = 0), introducing direct target leakage. "
+    "At order placement time, the final status is unknown.",
+    style="List Bullet"
+)
+doc.add_paragraph("Late_delivery_risk — classification target", style="List Bullet")
+doc.add_paragraph("Days for shipping (real) — regression target", style="List Bullet")
+doc.add_paragraph("All PII columns (email, name, address, password)", style="List Bullet")
 
 # ──────────────────────────────────────────────────────────────────
 # 3. OBJECTIVES
 # ──────────────────────────────────────────────────────────────────
 heading("3. Objectives", level=1)
-for obj in [
+for i, obj in enumerate([
     "Audit and understand the DataCo supply chain dataset (180,519 records, 53 columns).",
     "Implement a reproducible preprocessing pipeline with strict data leakage prevention.",
     "Conduct exploratory data analysis to identify patterns in delivery performance.",
@@ -188,8 +211,9 @@ for obj in [
     "Apply SHAP-based explainability to interpret model predictions.",
     "Translate analytical findings into actionable business recommendations.",
     "Deploy an interactive executive dashboard using Streamlit.",
-]:
-    doc.add_paragraph(obj, style="List Number")
+], start=1):
+    p = doc.add_paragraph()
+    p.add_run(f"{i}. {obj}").font.name = "Times New Roman"
 
 # ──────────────────────────────────────────────────────────────────
 # 4. BUSINESS CONTEXT
@@ -202,9 +226,7 @@ para(
     "outcomes. The dataset represents a multi-geography supply chain operation spanning "
     "diverse logistics environments."
 )
-para(
-    "Key business drivers that make delivery prediction valuable:"
-)
+para("Key business drivers that make delivery prediction valuable:")
 for point in [
     "Customer Retention: Late deliveries are a leading cause of customer churn in e-commerce and B2B supply.",
     "Operational Costs: Expedited rerouting and compensation increase logistics costs.",
@@ -220,9 +242,9 @@ heading("5. Dataset Description", level=1)
 para(
     "Source: DataCo SMART SUPPLY CHAIN FOR BIG DATA ANALYSIS\n"
     "Reference: Constante, F., Silva, F., & Pereira, A. (2019). Mendeley Data.\n"
-    f"Records: {ds_info.get('total_rows', 180519):,} rows × {ds_info.get('total_cols', 53)} columns\n"
+    f"Records: {ds_info.get('total_rows', 180519):,} rows \u00d7 {ds_info.get('total_cols', 53)} columns\n"
     "File encoding: Latin-1\n"
-    "Date range: January 2015 – February 2018"
+    "Date range: January 2015 \u2013 February 2018"
 )
 
 heading("Target Variables", level=2)
@@ -243,7 +265,8 @@ table_from_list(
         ["Missing values", "Product Description: 100%; Order Zipcode: 86%; Customer Lname: 8 rows"],
         ["Duplicate rows", "0 exact duplicates"],
         ["PII columns removed", "Email, Fname, Lname, Password, Street, Zipcode"],
-        ["Leakage columns removed", "Delivery Status, shipping date (DateOrders)"],
+        ["Leakage columns removed",
+         "Delivery Status, shipping date (DateOrders), Order Status"],
         ["Identifier columns removed", "Order Id, Customer Id, Item Id, etc. (9 columns)"],
         ["Sparse/low-signal removed", "Product Description, Product Image, Order Zipcode, etc."],
     ]
@@ -256,25 +279,32 @@ doc.add_page_break()
 heading("6. Data Preprocessing", level=1)
 para(
     "The preprocessing pipeline is implemented in src/data_preprocessing.py and follows "
-    "these steps in order:"
+    "the steps listed below. Each step number restarts from 1 for this section."
 )
-for step in [
+
+preprocessing_steps = [
     "Load raw CSV (latin-1 encoding). Raw data is never modified.",
     "Parse order date string to datetime.",
     "Extract datetime features: year, month, quarter, day, dayofweek, hour.",
-    "Remove leakage, PII, identifier, and sparse/low-signal columns.",
-    "Impute missing values: median for numeric, 'Unknown' for categorical.",
-    "Chronological train/test split: earliest 80% → train, latest 20% → test.",
-    "Fit LabelEncoder on training categoricals; transform both splits.",
-    "Build X (features), y_regression, y_classification matrices.",
+    "Remove leakage, PII, identifier, and sparse/low-signal columns "
+    "(including Order Status \u2014 post-fulfillment lifecycle state).",
+    "Perform chronological train/test split: earliest 80% \u2192 train, latest 20% \u2192 test.",
+    "Impute missing values: medians fitted on training data only, applied to test; "
+    "\u2018Unknown\u2019 constant for categoricals. "
+    "(In the DataCo dataset no missing values exist after leakage columns are removed, "
+    "so this step is a correctness safeguard for future data.)",
+    "Encode categorical features: fit LabelEncoder on training data; transform both splits.",
+    "Build feature matrices X, y_regression, y_classification.",
     "Save processed data to data/processed/.",
-]:
-    doc.add_paragraph(step, style="List Number")
+]
+for i, step in enumerate(preprocessing_steps, start=1):
+    p = doc.add_paragraph()
+    p.add_run(f"{i}. {step}").font.name = "Times New Roman"
 
 heading("Chronological Train/Test Split", level=2)
 para(
-    f"Training set: {ds_info.get('train_rows', 144415):,} rows (80% — orders placed before the split date)\n"
-    f"Test set: {ds_info.get('test_rows', 36104):,} rows (20% — orders placed after the split date)\n"
+    f"Training set: {ds_info.get('train_rows', 144415):,} rows (80% \u2014 orders placed before the split date)\n"
+    f"Test set: {ds_info.get('test_rows', 36104):,} rows (20% \u2014 orders placed after the split date)\n"
     "\nA chronological split is used to prevent data leakage from future shipments into the training set, "
     "reflecting a realistic deployment scenario."
 )
@@ -284,14 +314,15 @@ table_from_list(
     ["Feature", "Description", "Source"],
     [
         ["order_year/month/quarter/day/dayofweek/hour", "Date components", "Order date"],
-        ["is_expedited_schedule", "1 if scheduled days ≤ 2", "Scheduled days"],
+        ["is_expedited_schedule", "1 if scheduled days \u2264 2", "Scheduled days"],
         ["profit_margin_ratio", "Order Profit / Order Item Total", "Order financials"],
         ["has_discount", "1 if item discount > 0", "Item discount"],
-        ["is_high_value", "1 if Product Price ≥ $200", "Product price"],
+        ["is_high_value", "1 if Product Price \u2265 $200", "Product price"],
         ["is_weekend_order", "1 if order placed Sat/Sun", "Order dayofweek"],
     ]
 )
-para(f"\nFinal feature set: {ds_info.get('n_features', 32)} numeric features.")
+n_features = ds_info.get("n_features", 31)
+para(f"\nFinal feature set: {n_features} numeric features.")
 
 # ──────────────────────────────────────────────────────────────────
 # 7. EXPLORATORY DATA ANALYSIS
@@ -304,7 +335,7 @@ add_figure("delivery_time_distribution.png",
            "Figure 1: Distribution of actual delivery days")
 para(
     "Actual delivery days range from 0 to 6, with a mean of 3.50 days and median of 3 days. "
-    "The distribution is approximately uniform across 1–5 days with slight peaks at 0 and 6. "
+    "The distribution is approximately uniform across 1\u20135 days with slight peaks at 0 and 6. "
     "54.8% of shipments are delivered late relative to the scheduled commitment."
 )
 
@@ -313,8 +344,8 @@ add_figure("performance_by_shipping_mode.png",
            "Figure 2: Late delivery rate and average days by shipping mode")
 para(
     "First Class and Second Class shipping modes show higher late delivery rates than Same Day. "
-    "Standard Class — the dominant mode at ~60% of shipments — has the highest absolute volume "
-    "of late deliveries and is therefore the primary lever for supply chain improvement."
+    "Standard Class \u2014 the dominant mode at approximately 60% of shipments \u2014 has the highest "
+    "absolute volume of late deliveries and is therefore the primary lever for supply chain improvement."
 )
 
 heading("7.3 Delivery Performance by Market", level=2)
@@ -328,7 +359,7 @@ para(
 
 heading("7.4 Temporal Trends", level=2)
 add_figure("delivery_trend_over_time.png",
-           "Figure 4: Monthly delivery performance trend (2015–2018)")
+           "Figure 4: Monthly delivery performance trend (2015\u20132018)")
 para(
     "Late delivery rates are relatively stable over the observation period, confirming that "
     "the ~55% late delivery rate is not an anomaly of a specific time period but reflects "
@@ -365,8 +396,8 @@ para(
 
 heading("8.2 Class Imbalance", level=2)
 para(
-    "The classification target has ~55% late and ~45% on-time deliveries. This mild imbalance "
-    "is addressed using class_weight='balanced' in applicable models (Logistic Regression, "
+    "The classification target has approximately 55% late and 45% on-time deliveries. This mild "
+    "imbalance is addressed using class_weight='balanced' in applicable models (Logistic Regression, "
     "Random Forest) to prevent bias toward the majority class. Gradient Boosting and XGBoost "
     "handle this via their loss function."
 )
@@ -375,33 +406,39 @@ para(
 # 9. REGRESSION RESULTS
 # ──────────────────────────────────────────────────────────────────
 heading("9. Delivery Time Prediction (Regression)", level=1)
-para("Target: Days for shipping (real) — the actual number of delivery days.")
+para("Target: Days for shipping (real) \u2014 the actual number of delivery days.")
 
 heading("9.1 Model Comparison", level=2)
-reg_headers = ["Model", "MAE", "RMSE", "R²"]
-reg_rows = [(r.get("Model",""), r.get("MAE",""), r.get("RMSE",""), r.get("R²",""))
-            for r in reg_all] if reg_all else [
-    ("Random Forest", "0.9545", "1.2592", "0.3928"),
-    ("XGBoost", "0.9714", "1.2624", "0.3896"),
-    ("Gradient Boosting", "0.9692", "1.2628", "0.3893"),
-    ("Linear Regression", "0.9843", "1.2644", "0.3877"),
-    ("Baseline (Mean)", "1.4186", "1.6158", "0.0000"),
-]
+reg_headers = ["Model", "MAE", "RMSE", "R\u00b2"]
+if reg_all:
+    reg_rows = [
+        (r.get("Model", ""), r.get("MAE", ""), r.get("RMSE", ""), r.get("R\u00b2", ""))
+        for r in reg_all
+    ]
+else:
+    reg_rows = [
+        ("Random Forest",     "0.9539", "1.2590", "0.3929"),
+        ("Gradient Boosting", "0.9682", "1.2618", "0.3902"),
+        ("XGBoost",           "0.9745", "1.2634", "0.3887"),
+        ("Linear Regression", "0.9840", "1.2643", "0.3878"),
+        ("Baseline (Mean)",   "1.4186", "1.6158", "0.0000"),
+    ]
 table_from_list(reg_headers, reg_rows)
 
 add_figure("regression_model_comparison.png",
            "Figure 6: Regression model comparison")
 
-heading("9.2 Best Model: Random Forest Regressor", level=2)
+best_reg_name = reg_best.get("model", "Random Forest")
+heading(f"9.2 Best Model: {best_reg_name}", level=2)
 para(
-    f"Selected model: {reg_best.get('model', 'Random Forest')}\n"
-    f"MAE  = {reg_best.get('MAE', '0.9545')} days\n"
-    f"RMSE = {reg_best.get('RMSE', '1.2592')} days\n"
-    f"R²   = {reg_best.get('R2', '0.3928')}\n\n"
-    "Interpretation: The model predicts actual delivery days within approximately ±0.95 days "
-    "on average (MAE). The R² of ~0.39 indicates the model explains 39% of the variance in "
-    "delivery time using pre-delivery features only. The remaining variance reflects inherent "
-    "randomness in logistics operations that cannot be predicted from order attributes alone."
+    f"Selected model: {best_reg_name}\n"
+    f"MAE  = {reg_best.get('MAE', '0.9539')} days\n"
+    f"RMSE = {reg_best.get('RMSE', '1.2590')} days\n"
+    f"R\u00b2   = {reg_best.get('R2', '0.3929')}\n\n"
+    "Interpretation: The model predicts actual delivery days within approximately \u00b10.95 days "
+    "on average (MAE). The R\u00b2 of approximately 0.39 indicates the model explains 39% of the "
+    "variance in delivery time using pre-delivery features only. The remaining variance reflects "
+    "inherent randomness in logistics operations that cannot be predicted from order attributes alone."
 )
 
 # ──────────────────────────────────────────────────────────────────
@@ -409,35 +446,42 @@ para(
 # ──────────────────────────────────────────────────────────────────
 doc.add_page_break()
 heading("10. Delivery Risk Prediction (Classification)", level=1)
-para("Target: Late_delivery_risk — binary flag (0=on time, 1=late).")
+para("Target: Late_delivery_risk \u2014 binary flag (0 = on time, 1 = late).")
 
 heading("10.1 Model Comparison", level=2)
 clf_headers = ["Model", "Accuracy", "Precision", "Recall", "F1", "ROC-AUC"]
-clf_rows = [(r.get("Model",""), r.get("Accuracy",""), r.get("Precision",""),
-             r.get("Recall",""), r.get("F1",""), r.get("ROC-AUC",""))
-            for r in clf_all] if clf_all else [
-    ("Gradient Boosting", "0.7356", "0.8868", "0.5917", "0.7098", "0.8004"),
-    ("XGBoost", "0.7363", "0.8914", "0.5894", "0.7096", "0.7980"),
-    ("Random Forest", "0.7347", "0.8898", "0.5873", "0.7076", "0.7885"),
-    ("Logistic Regression", "0.6983", "0.8519", "0.5423", "0.6627", "0.7377"),
-]
+if clf_all:
+    clf_rows = [
+        (r.get("Model", ""), r.get("Accuracy", ""), r.get("Precision", ""),
+         r.get("Recall", ""), r.get("F1", ""), r.get("ROC-AUC", ""))
+        for r in clf_all
+    ]
+else:
+    clf_rows = [
+        ("XGBoost",           "0.7160", "0.8404", "0.5930", "0.6953", "0.7684"),
+        ("Gradient Boosting", "0.7161", "0.8407", "0.5928", "0.6953", "0.7669"),
+        ("Random Forest",     "0.7178", "0.8500", "0.5873", "0.6947", "0.7685"),
+        ("Logistic Regression","0.6936","0.8424", "0.5404", "0.6584", "0.7394"),
+    ]
 table_from_list(clf_headers, clf_rows)
 
 add_figure("roc_curves.png", "Figure 7: ROC curves for all classifiers")
-add_figure("confusion_matrix.png", "Figure 8: Confusion matrix — Gradient Boosting")
+add_figure("confusion_matrix.png", f"Figure 8: Confusion matrix \u2014 {clf_model_name}")
 
-heading("10.2 Best Model: Gradient Boosting Classifier", level=2)
+heading(f"10.2 Best Model: {clf_model_name}", level=2)
 para(
-    f"Selected model: {clf_best.get('model', 'Gradient Boosting')}\n"
-    f"Accuracy  = {clf_best.get('Accuracy',  '0.7356')}\n"
-    f"Precision = {clf_best.get('Precision', '0.8868')}\n"
-    f"Recall    = {clf_best.get('Recall',    '0.5917')}\n"
-    f"F1        = {clf_best.get('F1',        '0.7098')}\n"
-    f"ROC-AUC   = {clf_best.get('ROC_AUC',  '0.8004')}\n\n"
-    "The model is selected based on F1 score (balances precision and recall) and ROC-AUC "
-    "(discriminative power). High Precision (0.887) means: when the model predicts a shipment "
-    "will be late, it is correct 88.7% of the time. Moderate Recall (0.591) means it "
-    "currently misses some late deliveries."
+    f"Selected model: {clf_model_name}\n"
+    f"Accuracy  = {clf_best.get('Accuracy',  '0.7160')}\n"
+    f"Precision = {clf_best.get('Precision', '0.8404')}\n"
+    f"Recall    = {clf_best.get('Recall',    '0.5930')}\n"
+    f"F1        = {clf_best.get('F1',        '0.6953')}\n"
+    f"ROC-AUC   = {clf_best.get('ROC_AUC',  '0.7684')}\n\n"
+    "Model selection is based on the highest F1 score (primary metric). XGBoost and Gradient "
+    "Boosting both report F1 = 0.6953 at the displayed precision; XGBoost is selected as it "
+    "appears first in the F1-sorted comparison. Note: Random Forest has the highest ROC-AUC "
+    "at 0.7685. High Precision (>0.84) means: when the model predicts a shipment will be late, "
+    "it is correct more than 84% of the time. Recall of approximately 0.59 means the model "
+    "identifies approximately 59% of actual late deliveries."
 )
 
 # ──────────────────────────────────────────────────────────────────
@@ -456,21 +500,39 @@ para(
 )
 
 add_figure("shap_regression_bar.png",
-           "Figure 9: SHAP global importance — Random Forest (regression)")
+           "Figure 9: SHAP global importance \u2014 Random Forest (regression)")
 add_figure("shap_classification_bar.png",
-           "Figure 10: SHAP global importance — Gradient Boosting (classification)")
+           f"Figure 10: SHAP global importance \u2014 {clf_model_name} (classification)")
 add_figure("shap_classification_summary.png",
-           "Figure 11: SHAP summary plot — Late delivery risk classification")
+           "Figure 11: SHAP summary plot \u2014 late delivery risk classification")
 
 heading("11.1 Key SHAP Findings", level=2)
+para(
+    "SHAP values are computed on a 1,500-record sample of the test set using TreeExplainer. "
+    "Top features differ between the two tasks and are reported separately below."
+)
+para("Regression (Random Forest) \u2014 top SHAP features by mean |SHAP value|:", bold=True)
 for finding in [
-    "Days for shipment (scheduled) is the most important predictive factor for both delivery time and late delivery risk, suggesting the scheduling system's estimates carry useful signal.",
-    "Shipping Mode is the second most important factor, with Same Day associated with lower predicted risk and Standard Class associated with higher predicted risk.",
-    "Order Region contributes significantly, reflecting regional logistics infrastructure differences.",
-    "Financial variables (Sales, Order Item Total) have moderate importance — higher-value orders may receive different handling.",
-    "Temporal features (order_month, order_dayofweek) contribute modestly, suggesting seasonal and day-of-week patterns.",
+    "Days for shipment (scheduled) is the strongest factor associated with predicted delivery days.",
+    "Shipping Mode is the second strongest factor, reflecting differences in logistics handling.",
+    "order_hour contributes at a considerably lower magnitude, suggesting time-of-day ordering "
+    "patterns carry a small additional signal.",
+    "Order Region and payment Type also contribute, at lower magnitude.",
 ]:
     doc.add_paragraph(finding, style="List Bullet")
+para("Classification (XGBoost) \u2014 top SHAP features by mean |SHAP value|:", bold=True)
+for finding in [
+    "Days for shipment (scheduled) is the dominant factor associated with predicted late-delivery risk.",
+    "Shipping Mode is the second strongest factor.",
+    "payment Type and order_hour contribute at lower magnitude.",
+    "Order Region, order_day, and order_dayofweek contribute modestly.",
+]:
+    doc.add_paragraph(finding, style="List Bullet")
+para(
+    "Note: SHAP values indicate the strength of association between a feature and model output. "
+    "They do not establish causation.",
+    bold=True
+)
 
 # ──────────────────────────────────────────────────────────────────
 # 12. SYSTEM ARCHITECTURE
@@ -484,16 +546,16 @@ para(
 table_from_list(
     ["Component", "File", "Responsibility"],
     [
-        ["Data Preprocessing", "src/data_preprocessing.py", "Load, clean, encode, split"],
-        ["Feature Engineering", "src/feature_engineering.py", "Create derived features"],
-        ["Regression Models", "src/regression_models.py", "Train/save regression models"],
+        ["Data Preprocessing",    "src/data_preprocessing.py",    "Load, clean, encode, split"],
+        ["Feature Engineering",   "src/feature_engineering.py",   "Create derived features"],
+        ["Regression Models",     "src/regression_models.py",     "Train/save regression models"],
         ["Classification Models", "src/classification_models.py", "Train/save classifiers"],
-        ["Evaluation", "src/evaluation.py", "Compute and compare metrics"],
-        ["Explainability", "src/explainability.py", "SHAP-based model explanation"],
-        ["Prediction", "src/prediction.py", "Inference pipeline"],
-        ["Dashboard", "dashboard/app.py", "Streamlit executive dashboard"],
-        ["Training Script", "scripts/train_and_evaluate.py", "End-to-end pipeline runner"],
-        ["Tests", "tests/", "Unit and integration tests"],
+        ["Evaluation",            "src/evaluation.py",            "Compute and compare metrics"],
+        ["Explainability",        "src/explainability.py",        "SHAP-based model explanation"],
+        ["Prediction",            "src/prediction.py",            "Inference pipeline"],
+        ["Dashboard",             "dashboard/app.py",             "Streamlit executive dashboard"],
+        ["Training Script",       "scripts/train_and_evaluate.py","End-to-end pipeline runner"],
+        ["Tests",                 "tests/",                       "Unit and integration tests"],
     ]
 )
 
@@ -501,12 +563,19 @@ table_from_list(
 # 13. KEY FINDINGS
 # ──────────────────────────────────────────────────────────────────
 heading("13. Key Findings", level=1)
+clf_roc_display = clf_best.get("ROC_AUC", "0.768")
 findings = [
-    ("54.8% of shipments are delivered late.", "Late delivery is systemic, not isolated."),
-    ("Standard Class is the highest-volume, highest-risk shipping mode.", "Improving Standard Class performance offers the greatest impact."),
-    ("Scheduled delivery days is the strongest predictive factor.", "Scheduling underestimation is predictable and preventable."),
-    ("ROC-AUC = 0.800 on held-out test data.", "Meaningful pre-delivery discrimination is achievable."),
-    ("Same Day delivery has the lowest late rate but is used for <5% of shipments.", "Premium shipping is underutilised relative to its performance."),
+    ("54.8% of shipments are delivered late.",
+     "Late delivery is systemic, not isolated."),
+    ("Standard Class is the highest-volume, highest-risk shipping mode.",
+     "Improving Standard Class SLA performance offers the greatest opportunity for impact."),
+    ("Scheduled delivery days is the strongest predictive factor.",
+     "The scheduling system's estimates carry useful signal; systematic discrepancies "
+     "between scheduled and actual delivery days can be identified in advance."),
+    (f"ROC-AUC = {clf_roc_display} on held-out test data.",
+     "Meaningful pre-delivery discrimination between late and on-time shipments is achievable."),
+    ("Same Day delivery has the lowest late rate but is used for <5% of shipments.",
+     "Premium shipping is underutilised relative to its performance."),
 ]
 table_from_list(["Finding", "Implication"], findings)
 
@@ -514,26 +583,37 @@ table_from_list(["Finding", "Implication"], findings)
 # 14. BUSINESS RECOMMENDATIONS
 # ──────────────────────────────────────────────────────────────────
 heading("14. Business Recommendations", level=1)
-for rec in [
+recommendations = [
     "Deploy the predictive model at order confirmation to assign a risk score to every new shipment.",
-    "Revise Standard Class SLA agreements: negotiate tighter delivery windows with logistics partners.",
-    "Implement a risk-tiered intervention protocol: HIGH risk → dispatch alert + customer notification; MEDIUM risk → customer notification; LOW risk → standard process.",
-    "Recalibrate scheduling estimates using model predictions to identify systematic underestimation.",
-    "Establish region-specific KPIs and conduct quarterly logistics partner reviews for underperforming regions.",
-    "Upgrade high-value Corporate customers automatically to expedited shipping modes above a revenue threshold.",
-]:
-    doc.add_paragraph(rec, style="List Number")
+    "Review Standard Class SLA performance and negotiate tighter delivery windows with logistics "
+    "partners where warranted.",
+    "Implement a risk-tiered intervention protocol: HIGH risk \u2192 dispatch alert + customer "
+    "notification; MEDIUM risk \u2192 customer notification; LOW risk \u2192 standard process.",
+    "Recalibrate scheduling estimates using model predictions to identify systematic discrepancies "
+    "between scheduled and actual delivery days.",
+    "Establish region-specific KPIs and conduct quarterly logistics partner reviews for "
+    "underperforming regions.",
+    "Evaluate targeted expedited-shipping eligibility for high-value Corporate customers based on "
+    "predicted delivery risk, service requirements, and cost-benefit analysis.",
+]
+for i, rec in enumerate(recommendations, start=1):
+    p = doc.add_paragraph()
+    p.add_run(f"{i}. {rec}").font.name = "Times New Roman"
 
 # ──────────────────────────────────────────────────────────────────
 # 15. LIMITATIONS AND FUTURE SCOPE
 # ──────────────────────────────────────────────────────────────────
 heading("15. Limitations", level=1)
 for lim in [
-    "Dataset covers 2015–2018; supply chain patterns may have changed post-COVID.",
-    "Regression R² of 0.39 indicates substantial unexplained variance from factors not in the dataset (carrier performance, weather, inventory).",
-    "SHAP shows association, not causation.",
-    "Optimal probability thresholds require business input on the cost of false alarms vs. missed late deliveries.",
-    "The model is trained on a static snapshot; production deployment requires periodic retraining.",
+    "Dataset covers 2015\u20132018; supply chain patterns may have changed post-COVID.",
+    "Regression R\u00b2 of approximately 0.39 indicates substantial unexplained variance from factors "
+    "not in the dataset (carrier performance, weather, real-time inventory).",
+    "SHAP values indicate association between features and model outputs; they do not establish "
+    "causal relationships.",
+    "Optimal probability thresholds require business input on the relative cost of false alarms "
+    "versus missed late deliveries.",
+    "The model is trained on a static historical snapshot; production deployment requires periodic "
+    "retraining to account for data drift.",
 ]:
     doc.add_paragraph(lim, style="List Bullet")
 
@@ -548,17 +628,20 @@ for fut in [
     doc.add_paragraph(fut, style="List Bullet")
 
 # ──────────────────────────────────────────────────────────────────
-# 16. CONCLUSION
+# 17. CONCLUSION
 # ──────────────────────────────────────────────────────────────────
 heading("17. Conclusion", level=1)
 para(
     "This project demonstrated that supply chain delivery risk can be meaningfully predicted from "
-    "pre-delivery information alone, without relying on any post-delivery data leakage. The Gradient "
-    "Boosting classifier achieves ROC-AUC = 0.800 — significantly better than chance — enabling "
-    "organisations to flag high-risk shipments before dispatch. Key predictive factors identified "
-    "through SHAP analysis (scheduled days, shipping mode, order region) provide actionable targets "
-    "for operational improvement. The accompanying interactive dashboard makes these findings "
-    "accessible to executive decision-makers without technical expertise in machine learning."
+    "pre-delivery information alone, without relying on any post-delivery data leakage. A rigorous "
+    "audit confirmed and corrected one leakage source (Order Status) that was present in an "
+    "earlier version of the pipeline. After correction, the "
+    f"{clf_model_name} classifier achieves a ROC-AUC of approximately {clf_roc_display}, "
+    "indicating meaningful discrimination between late and on-time shipments. "
+    "Key predictive factors identified through SHAP analysis (scheduled days, shipping mode, "
+    "order region) provide actionable targets for operational improvement. The accompanying "
+    "interactive dashboard makes these findings accessible to executive decision-makers without "
+    "requiring technical expertise in machine learning."
 )
 
 # ──────────────────────────────────────────────────────────────────
@@ -568,16 +651,16 @@ doc.add_page_break()
 heading("References", level=1)
 refs = [
     "Constante, F., Silva, F., & Pereira, A. (2019). DataCo Smart Supply Chain for Big Data Analysis. Mendeley Data, V5. https://doi.org/10.17632/8gx2fvg2k6.5",
-    "Breiman, L. (2001). Random forests. Machine Learning, 45(1), 5–32.",
-    "Friedman, J. H. (2001). Greedy function approximation: A gradient boosting machine. Annals of Statistics, 29(5), 1189–1232.",
+    "Breiman, L. (2001). Random forests. Machine Learning, 45(1), 5\u201332.",
+    "Friedman, J. H. (2001). Greedy function approximation: A gradient boosting machine. Annals of Statistics, 29(5), 1189\u20131232.",
     "Lundberg, S. M., & Lee, S.-I. (2017). A unified approach to interpreting model predictions. Advances in Neural Information Processing Systems, 30.",
     "Chen, T., & Guestrin, C. (2016). XGBoost: A scalable tree boosting system. KDD 2016.",
-    "Pedregosa, F., et al. (2011). Scikit-learn: Machine learning in Python. JMLR, 12, 2825–2830.",
+    "Pedregosa, F., et al. (2011). Scikit-learn: Machine learning in Python. JMLR, 12, 2825\u20132830.",
     "McKinney, W. (2010). Data structures for statistical computing in Python. Proceedings of the 9th Python in Science Conference.",
 ]
-for ref in refs:
-    p = doc.add_paragraph(style="List Number")
-    p.add_run(ref).font.size = Pt(11)
+for i, ref in enumerate(refs, start=1):
+    p = doc.add_paragraph()
+    p.add_run(f"{i}. {ref}").font.size = Pt(11)
 
 # ──────────────────────────────────────────────────────────────────
 # SAVE

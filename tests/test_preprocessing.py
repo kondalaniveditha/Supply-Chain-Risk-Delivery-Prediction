@@ -52,7 +52,7 @@ def processed_df(raw_df):
     df = parse_dates(raw_df)
     df = create_datetime_features(df)
     df = drop_leakage_and_pii(df)
-    df = handle_missing_values(df)
+    df, _ = handle_missing_values(df, fit=True)
     return df
 
 
@@ -159,8 +159,37 @@ class TestLeakageAndPII:
 
 class TestMissingValueHandling:
     def test_no_missing_after_imputation(self, processed_df):
-        df_clean = handle_missing_values(processed_df)
+        df_clean, _ = handle_missing_values(processed_df, fit=True)
         assert df_clean.isnull().sum().sum() == 0, "Missing values remain after imputation"
+
+    def test_imputation_returns_tuple(self, processed_df):
+        result = handle_missing_values(processed_df, fit=True)
+        assert isinstance(result, tuple) and len(result) == 2
+        df_out, medians = result
+        assert isinstance(df_out, pd.DataFrame)
+        assert isinstance(medians, dict)
+
+    def test_test_imputation_uses_train_medians(self, processed_df):
+        """Test set must be imputed with train-computed medians, not its own."""
+        train, test = chronological_split(processed_df, test_frac=0.20)
+        num_cols = train.select_dtypes(include=[np.number]).columns
+        if len(num_cols) == 0:
+            pytest.skip("No numerical columns to test imputation")
+        col = num_cols[0]
+        # Inject one artificial NaN into the test set
+        test_dirty = test.copy()
+        test_dirty.iloc[0, test_dirty.columns.get_loc(col)] = np.nan
+        # Fit medians on train only
+        _, train_medians = handle_missing_values(train, fit=True)
+        # Apply train medians to test
+        test_clean, _ = handle_missing_values(
+            test_dirty, train_medians=train_medians, fit=False
+        )
+        assert test_clean.isnull().sum().sum() == 0
+        # The filled value must equal the TRAIN median, not the test median
+        assert test_clean.iloc[0][col] == pytest.approx(
+            train_medians.get(col, train[col].median())
+        )
 
 
 # -----------------------------------------------------------------------
@@ -169,21 +198,21 @@ class TestMissingValueHandling:
 
 class TestFeatureMatrix:
     def test_feature_matrix_no_targets(self, processed_df):
-        df_clean = handle_missing_values(processed_df)
+        df_clean, _ = handle_missing_values(processed_df, fit=True)
         df_enc, _ = encode_categoricals(df_clean, fit=True)
         X, y_reg, y_clf = build_feature_matrix(df_enc)
         assert TARGET_REGRESSION not in X.columns
         assert TARGET_CLASSIFICATION not in X.columns
 
     def test_targets_correct_type(self, processed_df):
-        df_clean = handle_missing_values(processed_df)
+        df_clean, _ = handle_missing_values(processed_df, fit=True)
         df_enc, _ = encode_categoricals(df_clean, fit=True)
         X, y_reg, y_clf = build_feature_matrix(df_enc)
         assert y_reg.dtype in [np.int64, np.float64]
         assert set(y_clf.unique()).issubset({0, 1})
 
     def test_no_missing_in_features(self, processed_df):
-        df_clean = handle_missing_values(processed_df)
+        df_clean, _ = handle_missing_values(processed_df, fit=True)
         df_enc, _ = encode_categoricals(df_clean, fit=True)
         X, _, _ = build_feature_matrix(df_enc)
         num_X = X.select_dtypes(include=[np.number])
@@ -196,14 +225,14 @@ class TestFeatureMatrix:
 
 class TestChronologicalSplit:
     def test_split_sizes(self, processed_df):
-        df_clean = handle_missing_values(processed_df)
+        df_clean, _ = handle_missing_values(processed_df, fit=True)
         train, test = chronological_split(df_clean, test_frac=0.20)
         total = len(train) + len(test)
         assert total == len(df_clean)
         assert len(test) == pytest.approx(len(df_clean) * 0.20, rel=0.05)
 
     def test_train_before_test_chronologically(self, processed_df):
-        df_clean = handle_missing_values(processed_df)
+        df_clean, _ = handle_missing_values(processed_df, fit=True)
         train, test = chronological_split(df_clean, test_frac=0.20)
         if "order_date" in train.columns and "order_date" in test.columns:
             max_train_date = train["order_date"].max()

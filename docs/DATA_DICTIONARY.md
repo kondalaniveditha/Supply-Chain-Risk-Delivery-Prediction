@@ -68,7 +68,7 @@
 | Order Profit Per Order | Profit per complete order | Float | 91.25 | **Feature** | Profitability signal |
 | Order Region | Geographic sub-region of destination | Categorical | Southeast Asia | **Feature** | Regional logistics differ significantly |
 | Order State | State/province within the region | Categorical | Java Occidental | **Excluded** | Very high cardinality, redundant with Order Region |
-| Order Status | Order workflow status (COMPLETE/PENDING/etc.) | Categorical | COMPLETE | **Feature** | Order lifecycle stage at time of prediction |
+| Order Status | Order workflow status (COMPLETE/PENDING/etc.) | Categorical | COMPLETE | **Leakage** | Post-fulfillment lifecycle state — CANCELED/SUSPECTED_FRAUD map 100% to Shipping canceled (Late_delivery_risk=0); COMPLETE/CLOSED are post-delivery states unknown at order placement |
 | Order Zipcode | ZIP code of destination | Float | NaN (86% missing) | **Excluded** | ~86% missing values |
 | Product Card Id | Internal product identifier | Integer | 1360 | **Identifier** | Redundant with Product Name |
 | Product Category Id | Numeric product category code | Integer | 73 | **Identifier** | Redundant with Category Name |
@@ -107,7 +107,7 @@
 | Missing values | Product Description: 100% missing; Order Zipcode: 86% missing; Customer Lname: 8 missing |
 | Duplicate rows | 0 exact duplicates found |
 | PII columns removed | Customer Email, Fname, Lname, Password, Street, Zipcode |
-| Leakage columns removed | Delivery Status, shipping date (DateOrders) |
+| Leakage columns removed | Delivery Status, shipping date (DateOrders), Order Status |
 | Identifiers removed | Customer Id, Order Id, Order Item Id, Order Item Cardprod Id, Product Card Id, Department Id, Category Id, Product Category Id, Order Customer Id |
 | Sparse/low-signal removed | Product Description, Product Image, Order Zipcode, Order State, Customer State, Customer City, Order City, Order Country, Customer Country, Latitude, Longitude |
 

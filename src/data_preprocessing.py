@@ -17,7 +17,13 @@ only AFTER the shipment outcome and must not be used as model features:
   - Delivery Status
   - Days for shipping (real)      ← regression TARGET
   - Late_delivery_risk            ← classification TARGET
-  - shipping date (DateOrders)
+  - shipping date / DateOrders
+  - Order Status                  ← post-fulfillment lifecycle state
+      In the DataCo dataset Order Status reflects the FINAL state of an
+      order (COMPLETE, CLOSED, CANCELED, SUSPECTED_FRAUD, etc.).
+      At order-placement time this state is unknown; statuses such as
+      CANCELED and SUSPECTED_FRAUD map perfectly to 'Shipping canceled'
+      (Late_delivery_risk = 0), introducing direct target leakage.
 They are removed from the feature matrix (but kept in a separate
 targets frame and in the full processed file for EDA purposes).
 """
@@ -40,6 +46,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 LEAKAGE_COLS = [
     "Delivery Status",
     "shipping date (DateOrders)",
+    "Order Status",          # post-fulfillment state — leakage (see module docstring)
 ]
 
 # Regression target
@@ -95,7 +102,6 @@ CATEGORICAL_FEATURES = [
     "Shipping Mode",
     "Department Name",
     "Category Name",
-    "Order Status",
     "Product Status",
 ]
 
@@ -186,26 +192,67 @@ def drop_leakage_and_pii(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    """Impute or drop remaining missing values."""
+def handle_missing_values(
+    df: pd.DataFrame,
+    train_medians: dict | None = None,
+    fit: bool = True,
+) -> tuple[pd.DataFrame, dict]:
+    """Impute remaining missing values.
+
+    Parameters
+    ----------
+    df            : DataFrame after leakage/PII columns have been dropped.
+    train_medians : Pre-computed median dict (used when fit=False, i.e. test set).
+                    Keys are column names; values are median floats.
+    fit           : If True, compute medians from *df* (use for training data).
+                    If False, use supplied *train_medians* (use for test data).
+
+    Returns
+    -------
+    (imputed_df, medians_dict)
+        medians_dict is the dict of medians used/computed (useful for persistence).
+
+    Notes
+    -----
+    In the DataCo Supply Chain dataset there are no missing values in the
+    numerical or categorical columns after the leakage/PII drop step.
+    This function therefore performs no imputation in practice but is
+    structured correctly to avoid test-set leakage if missing values appear
+    in future data versions.
+    """
     df = df.copy()
-    # Customer Lname (8 missing) – low signal, already removed as PII/sparse
-    # Any remaining categoricals → fill with 'Unknown'
-    cat_cols = df.select_dtypes(include="object").columns
+    medians: dict = train_medians.copy() if train_medians else {}
+
+    # Categorical → fill with constant 'Unknown' (no leakage risk)
+    # Use select_dtypes with both legacy "object" and explicit "string" for pandas 2/3 compat
+    cat_cols = df.select_dtypes(include=["object"]).columns
     for col in cat_cols:
         n_missing = df[col].isnull().sum()
         if n_missing > 0:
             df[col] = df[col].fillna("Unknown")
             logger.info("Filled %d missing in '%s' with 'Unknown'.", n_missing, col)
-    # Numerical – fill with median
+
+    # Numerical → fill with train median only
     num_cols = df.select_dtypes(include=[np.number]).columns
+
+    if fit:
+        # Compute and store medians for ALL numerical columns so they are
+        # available for any column that may have missing values at inference time.
+        for col in num_cols:
+            medians[col] = df[col].median()
+
     for col in num_cols:
         n_missing = df[col].isnull().sum()
         if n_missing > 0:
-            median_val = df[col].median()
+            # Use stored train median; fall back to 0 only if column is truly unseen
+            median_val = medians.get(col, 0.0)
             df[col] = df[col].fillna(median_val)
-            logger.info("Filled %d missing in '%s' with median %.4f.", n_missing, col, median_val)
-    return df
+            logger.info(
+                "Filled %d missing in '%s' with median %.4f (fit=%s).",
+                n_missing, col, median_val, fit,
+            )
+
+    return df, medians
 
 
 def encode_categoricals(df: pd.DataFrame,
@@ -308,15 +355,20 @@ def run_full_pipeline(
     # 5. Drop leakage, PII, identifiers, sparse columns
     df = drop_leakage_and_pii(df)
 
-    # 6. Handle missing values
-    df = handle_missing_values(df)
+    # 6. Chronological split BEFORE any statistics are computed
+    #    This prevents test-set information from influencing training statistics.
+    df_train_raw, df_test_raw = chronological_split(df, test_frac=test_frac)
 
-    # 7. Chronological split (before encoding to prevent data leakage through encoders)
-    df_train, df_test = chronological_split(df, test_frac=test_frac)
+    # 7. Impute missing values — fit medians on TRAIN only, apply to both splits
+    df_train_imp, train_medians = handle_missing_values(df_train_raw, fit=True)
+    df_test_imp,  _             = handle_missing_values(df_test_raw, train_medians=train_medians, fit=False)
+
+    # Also impute the full df using train medians (for EDA / dashboard consistency)
+    df_full_imp, _ = handle_missing_values(df, train_medians=train_medians, fit=False)
 
     # 8. Encode categoricals (fit on train, transform both)
-    df_train_enc, encoders = encode_categoricals(df_train, fit=True)
-    df_test_enc, _         = encode_categoricals(df_test, encoders=encoders, fit=False)
+    df_train_enc, encoders = encode_categoricals(df_train_imp, fit=True)
+    df_test_enc, _         = encode_categoricals(df_test_imp, encoders=encoders, fit=False)
 
     # 9. Build feature matrices
     X_train, y_reg_train, y_clf_train = build_feature_matrix(df_train_enc)
@@ -325,7 +377,7 @@ def run_full_pipeline(
     # 10. Save processed full dataset (for EDA / dashboard)
     os.makedirs(os.path.dirname(processed_path), exist_ok=True)
     # Save the encoded full df (needed for dashboard)
-    df_full_enc, _ = encode_categoricals(df, encoders=encoders, fit=False)
+    df_full_enc, _ = encode_categoricals(df_full_imp, encoders=encoders, fit=False)
     df_full_enc.to_csv(processed_path, index=False)
     logger.info("Processed data saved to: %s", processed_path)
 
@@ -338,7 +390,7 @@ def run_full_pipeline(
     logger.info("Test  split saved to: %s", test_path)
 
     return {
-        "df_full": df,
+        "df_full": df_full_imp,
         "df_full_enc": df_full_enc,
         "df_train": df_train_enc,
         "df_test": df_test_enc,
@@ -349,6 +401,7 @@ def run_full_pipeline(
         "y_clf_train": y_clf_train,
         "y_clf_test": y_clf_test,
         "encoders": encoders,
+        "train_medians": train_medians,
         "quality_report": quality_report,
     }
 

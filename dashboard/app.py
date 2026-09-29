@@ -122,8 +122,6 @@ def load_raw_for_dashboard():
 # Sidebar navigation
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/5/51/IBM_logo.svg",
-             width=80) if False else st.markdown("### 🚚 Supply Chain Analytics")
     st.markdown("### 🚚 Supply Chain Analytics")
     st.markdown("*IBM SkillsBuild Internship Project*")
     st.markdown("---")
@@ -161,7 +159,7 @@ with st.sidebar:
     st.markdown("**Data Leakage Policy**")
     st.info(
         "Predictions use only pre-delivery features. "
-        "Delivery Status, Shipping Date, and Late_delivery_risk "
+        "Delivery Status, Shipping Date, Order Status, and Late_delivery_risk "
         "are excluded from all model inputs."
     )
 
@@ -327,12 +325,12 @@ if page == "📊 Executive Overview":
                      late_rate=("Late_delivery_risk", "mean"))
             )
             fig, axes = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
-            axes[0].plot(monthly.index, monthly["avg_days"], "#3b82d4", linewidth=2)
+            axes[0].plot(monthly.index, monthly["avg_days"], color="#3b82d4", linewidth=2)
             axes[0].set_ylabel("Avg Delivery Days")
             axes[0].set_title("Monthly Delivery Performance", fontsize=13, fontweight="bold")
             axes[0].grid(linestyle="--", alpha=0.4)
 
-            axes[1].plot(monthly.index, monthly["late_rate"] * 100, "#ef4444", linewidth=2)
+            axes[1].plot(monthly.index, monthly["late_rate"] * 100, color="#ef4444", linewidth=2)
             axes[1].set_ylabel("Late Rate (%)")
             axes[1].set_xlabel("Month")
             axes[1].grid(linestyle="--", alpha=0.4)
@@ -620,12 +618,12 @@ elif page == "⚠️ Risk & Recommendations":
         {
             "fact": "54.8% of shipments in the dataset are delivered late.",
             "insight": "The majority of shipments miss their scheduled delivery window, indicating a systemic — not isolated — operational problem.",
-            "risk": "Customer satisfaction and repeat purchase rates are directly affected by consistent late delivery.",
+            "risk": "Late delivery can create potential customer-experience and retention risks, although these outcomes are not directly measured in this dataset.",
             "action": "Conduct root-cause analysis at the regional dispatch level and revise scheduling algorithms.",
         },
         {
             "fact": "Standard Class shipping accounts for ~60% of all shipments but has the highest late delivery rate.",
-            "insight": "The dominant shipping mode is the primary driver of overall late-delivery statistics.",
+            "insight": "Standard Class accounts for the highest absolute volume of late deliveries in this dataset.",
             "risk": "Over-reliance on Standard Class creates concentrated delivery risk.",
             "action": "Review Standard Class SLA agreements with logistics partners; explore upgrading high-value customers to Second Class.",
         },
@@ -636,14 +634,14 @@ elif page == "⚠️ Risk & Recommendations":
             "action": "Integrate the predictive model into the order management system to flag high-risk orders at the time of scheduling.",
         },
         {
-            "fact": "The Gradient Boosting classifier achieves ROC-AUC = 0.800, meaning it ranks 80% of late deliveries above on-time ones.",
-            "insight": "The model provides meaningful discrimination between high-risk and low-risk shipments even with pre-delivery information only.",
+            "fact": "The best classifier achieves ROC-AUC ≈ 0.768 on held-out test data (after removing data-leakage features), meaning it ranks approximately 77% of late deliveries above on-time ones.",
+            "insight": "The model provides meaningful discrimination between high-risk and low-risk shipments using only pre-delivery information.",
             "risk": "Undeployed, this predictive capability provides no operational value.",
             "action": "Deploy the model as a real-time risk score at order confirmation. Trigger proactive customer notifications for HIGH-risk shipments.",
         },
         {
             "fact": "Same Day delivery mode shows the lowest late-delivery rate but represents only ~5% of shipments.",
-            "insight": "Premium shipping reliably meets delivery commitments but is underutilised.",
+            "insight": "Same Day shipping has the lowest observed late-delivery rate among the shipping modes in this dataset.",
             "risk": "Opportunity cost: customers who would pay for premium shipping are defaulted to Standard Class.",
             "action": "Expand Same Day eligibility criteria and offer upgrades to high-value segments.",
         },
@@ -662,11 +660,11 @@ elif page == "⚠️ Risk & Recommendations":
                 unsafe_allow_html=True)
 
     recommendations = [
-        "**Deploy predictive scoring at order placement** — flag HIGH-risk shipments (predicted late probability > 65%) for proactive handling before dispatch.",
+       "**Deploy predictive scoring at order placement** — flag shipments classified as HIGH risk using the project's illustrative 65% probability threshold for proactive handling before dispatch.",
         "**Revise Standard Class SLA** — negotiate tighter delivery windows with logistics partners for the dominant shipping mode.",
-        "**Upgrade high-value customers** — route Corporate segment and high-order-value shipments automatically to expedited modes.",
+        "**Evaluate expedited shipping eligibility** — assess targeted upgrades for high-value Corporate customers based on predicted delivery risk, service requirements, and cost-benefit analysis.",
         "**Regional intervention** — allocate additional logistics resources to the highest-risk regions identified in the risk analysis.",
-        "**Monitor scheduled-vs-actual gap** — the scheduling system consistently underestimates delivery time; recalibrate scheduling coefficients quarterly.",
+        "**Monitor scheduled-vs-actual gap** — examine differences between scheduled and predicted delivery time across shipping modes and regions, and recalibrate scheduling rules where the evidence supports it.",
         "**Customer notification** — for any shipment flagged MEDIUM or HIGH risk, trigger an automated notification 24 hours before expected delivery.",
     ]
 

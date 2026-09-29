@@ -10,7 +10,7 @@ import pandas as pd
 
 
 def add_schedule_deviation_flag(df: pd.DataFrame) -> pd.DataFrame:
-    """Flag whether scheduled days > 3 (expedited vs standard)."""
+    """Flag whether scheduled days <= 2 (expedited shipping schedule)."""
     df = df.copy()
     if "Days for shipment (scheduled)" in df.columns:
         df["is_expedited_schedule"] = (df["Days for shipment (scheduled)"] <= 2).astype(int)

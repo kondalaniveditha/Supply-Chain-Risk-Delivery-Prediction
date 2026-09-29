@@ -20,7 +20,6 @@
       "Order Item Total",
       "Order Profit Per Order",
       "Order Region",
-      "Order Status",
       "Product Price",
       "Product Status",
       "Shipping Mode",
@@ -36,7 +35,7 @@
       "is_high_value",
       "is_weekend_order"
     ],
-    "n_features": 32,
+    "n_features": 31,
     "train_rows": 144415,
     "test_rows": 36104,
     "late_rate_pct": 54.87
@@ -44,34 +43,34 @@
   "regression": {
     "best_model": {
       "model": "Random Forest",
-      "MAE": 0.9545,
-      "RMSE": 1.2592,
-      "R2": 0.3928
+      "MAE": 0.9539,
+      "RMSE": 1.259,
+      "R2": 0.3929
     },
     "all_models": [
       {
         "Model": "Random Forest",
-        "MAE": 0.9545,
-        "RMSE": 1.2592,
-        "R\u00b2": 0.3928
-      },
-      {
-        "Model": "XGBoost",
-        "MAE": 0.9714,
-        "RMSE": 1.2624,
-        "R\u00b2": 0.3896
+        "MAE": 0.9539,
+        "RMSE": 1.259,
+        "R\u00b2": 0.3929
       },
       {
         "Model": "Gradient Boosting",
-        "MAE": 0.9692,
-        "RMSE": 1.2628,
-        "R\u00b2": 0.3893
+        "MAE": 0.9682,
+        "RMSE": 1.2618,
+        "R\u00b2": 0.3902
+      },
+      {
+        "Model": "XGBoost",
+        "MAE": 0.9745,
+        "RMSE": 1.2634,
+        "R\u00b2": 0.3887
       },
       {
         "Model": "Linear Regression",
-        "MAE": 0.9843,
-        "RMSE": 1.2644,
-        "R\u00b2": 0.3877
+        "MAE": 0.984,
+        "RMSE": 1.2643,
+        "R\u00b2": 0.3878
       },
       {
         "Model": "Baseline (Mean)",
@@ -83,49 +82,49 @@
   },
   "classification": {
     "best_model": {
-      "model": "Gradient Boosting",
-      "Accuracy": 0.7356,
-      "Precision": 0.8868,
-      "Recall": 0.5917,
-      "F1": 0.7098,
-      "ROC_AUC": 0.8004
+      "model": "XGBoost",
+      "Accuracy": 0.716,
+      "Precision": 0.8404,
+      "Recall": 0.593,
+      "F1": 0.6953,
+      "ROC_AUC": 0.7684
     },
     "all_models": [
       {
-        "Model": "Gradient Boosting",
-        "Accuracy": 0.7356,
-        "Precision": 0.8868,
-        "Recall": 0.5917,
-        "F1": 0.7098,
-        "ROC-AUC": 0.8004,
-        "PR-AUC": 0.8578
+        "Model": "XGBoost",
+        "Accuracy": 0.716,
+        "Precision": 0.8404,
+        "Recall": 0.593,
+        "F1": 0.6953,
+        "ROC-AUC": 0.7684,
+        "PR-AUC": 0.8335
       },
       {
-        "Model": "XGBoost",
-        "Accuracy": 0.7363,
-        "Precision": 0.8914,
-        "Recall": 0.5894,
-        "F1": 0.7096,
-        "ROC-AUC": 0.798,
-        "PR-AUC": 0.8569
+        "Model": "Gradient Boosting",
+        "Accuracy": 0.7161,
+        "Precision": 0.8407,
+        "Recall": 0.5928,
+        "F1": 0.6953,
+        "ROC-AUC": 0.7669,
+        "PR-AUC": 0.8327
       },
       {
         "Model": "Random Forest",
-        "Accuracy": 0.7347,
-        "Precision": 0.8898,
+        "Accuracy": 0.7178,
+        "Precision": 0.85,
         "Recall": 0.5873,
-        "F1": 0.7076,
-        "ROC-AUC": 0.7885,
-        "PR-AUC": 0.8508
+        "F1": 0.6947,
+        "ROC-AUC": 0.7685,
+        "PR-AUC": 0.8322
       },
       {
         "Model": "Logistic Regression",
-        "Accuracy": 0.6983,
-        "Precision": 0.8519,
-        "Recall": 0.5423,
-        "F1": 0.6627,
-        "ROC-AUC": 0.7377,
-        "PR-AUC": 0.8076
+        "Accuracy": 0.6936,
+        "Precision": 0.8424,
+        "Recall": 0.5404,
+        "F1": 0.6584,
+        "ROC-AUC": 0.7394,
+        "PR-AUC": 0.8122
       }
     ]
   }

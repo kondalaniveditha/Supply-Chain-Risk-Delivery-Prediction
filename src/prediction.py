@@ -3,8 +3,8 @@ src/prediction.py
 =================
 Single-shipment prediction pipeline.
 
-Accepts pre-delivery shipment attributes, applies the saved preprocessing
-pipeline and returns:
+Accepts preprocessed numeric shipment features and applies the saved
+model and scaler artifacts to return:
   - predicted_delivery_days  (regression)
   - late_probability         (classification)
   - risk_category            (LOW / MEDIUM / HIGH)
@@ -47,7 +47,7 @@ def assign_risk_category(probability: float) -> str:
 
 
 def load_pipeline(model_dir: str = "models") -> dict:
-    """Load both models, scalers, and feature name lists."""
+    """Load trained models, scalers, and feature-name metadata."""
     import os
     artifacts = {}
     for task in ("regression", "classification"):
@@ -63,7 +63,7 @@ def predict_single(input_dict: dict, artifacts: dict) -> dict:
 
     Parameters
     ----------
-    input_dict : Dict of feature name → value (raw, pre-encoding).
+    input_dict : Dict of feature name → already-preprocessed numeric value.
     artifacts  : Loaded pipeline artifacts from load_pipeline().
 
     Returns

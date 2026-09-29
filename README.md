@@ -1,7 +1,7 @@
 # Supply Chain Risk Analytics and Delivery Time Prediction Using Machine Learning
 
 **IBM SkillsBuild Data Analytics with AI Internship | Graduate-Level Project**  
-**Author:** Niveditha
+**Author:** K. Niveditha Sai | **Year:** 2026
 
 ---
 
@@ -9,8 +9,10 @@
 
 An end-to-end supply chain analytics and machine learning system that predicts delivery time and late-delivery risk using only pre-delivery information. Built on 180,519 real shipment records from the DataCo Global supply chain dataset.
 
-**Best Regression Model:** Random Forest — RMSE = 1.259 days, R² = 0.393  
-**Best Classification Model:** Gradient Boosting — F1 = 0.710, ROC-AUC = 0.800
+**Best Regression Model:** Random Forest — MAE = 0.9539, RMSE = 1.259 days, R² = 0.3929  
+**Best Classification Model:** XGBoost — F1 = 0.6953, ROC-AUC = 0.7684
+
+> These metrics are from the **leakage-corrected** pipeline (Order Status removed).
 
 ---
 
@@ -24,14 +26,20 @@ The system is designed as a realistic pre-delivery predictor. All post-delivery 
 
 ---
 
-## Objectives
+## Data Leakage Prevention
 
-1. Audit the DataCo supply chain dataset (180,519 records, 53 columns)
-2. Build a reproducible preprocessing pipeline with strict leakage prevention
-3. Train and compare regression and classification models
-4. Apply SHAP explainability to identify key predictive factors
-5. Provide an interactive executive dashboard
-6. Translate findings into actionable business recommendations
+> **Critical design constraint:** This project simulates a realistic pre-delivery prediction system.
+
+The following columns are **strictly excluded** from all model inputs:
+
+| Column | Reason |
+|--------|--------|
+| `Delivery Status` | Post-delivery outcome — leakage |
+| `shipping date (DateOrders)` | Actual dispatch date — post-commitment info |
+| `Order Status` | Post-fulfillment lifecycle state — CANCELED/SUSPECTED_FRAUD map 100% to Shipping canceled (Late_delivery_risk=0), direct target leakage |
+| `Late_delivery_risk` | Classification target |
+| `Days for shipping (real)` | Regression target |
+| PII columns | Privacy protection |
 
 ---
 
@@ -46,24 +54,7 @@ The system is designed as a realistic pre-delivery predictor. All post-delivery 
 Place the dataset at:
 ```
 data/raw/DataCoSupplyChainDataset.csv
-data/raw/DescriptionDataCoSupplyChain.csv
 ```
-
----
-
-## Data Leakage Prevention
-
-> **Critical design constraint:** This project simulates a realistic pre-delivery prediction system.
-
-The following columns are **strictly excluded** from all model inputs:
-
-| Column | Reason |
-|--------|--------|
-| `Delivery Status` | Post-delivery outcome — leakage |
-| `shipping date (DateOrders)` | Actual dispatch date — post-commitment info |
-| `Late_delivery_risk` | Classification target |
-| `Days for shipping (real)` | Regression target |
-| PII columns | Privacy protection |
 
 ---
 
@@ -91,13 +82,13 @@ The following columns are **strictly excluded** from all model inputs:
 Raw Data (180,519 records)
        ↓
 Data Preprocessing (src/data_preprocessing.py)
-  • Remove leakage, PII, identifiers
+  • Remove leakage (Delivery Status, shipping date, Order Status), PII, identifiers
   • Parse dates, create datetime features
   • Chronological 80/20 train/test split
   • Label encode categoricals
        ↓
 Feature Engineering (src/feature_engineering.py)
-  • 32 final numeric features
+  • 31 final numeric features (after leakage correction)
        ↓
 ┌─────────────────────────┬────────────────────────────┐
 │ Regression              │ Classification             │
@@ -179,34 +170,44 @@ Supply-Chain-Risk-Delivery-Prediction/
 
 | Model | MAE | RMSE | R² |
 |-------|-----|------|----|
-| **Random Forest** ✓ | **0.9545** | **1.2592** | **0.3928** |
-| XGBoost | 0.9714 | 1.2624 | 0.3896 |
-| Gradient Boosting | 0.9692 | 1.2628 | 0.3893 |
-| Linear Regression | 0.9843 | 1.2644 | 0.3877 |
+| **Random Forest** ✓ | **0.9539** | **1.2590** | **0.3929** |
+| Gradient Boosting | 0.9682 | 1.2618 | 0.3902 |
+| XGBoost | 0.9745 | 1.2634 | 0.3887 |
+| Linear Regression | 0.9840 | 1.2643 | 0.3878 |
 | Baseline (Mean) | 1.4186 | 1.6158 | 0.0000 |
 
 ### Classification (Late Delivery Risk)
 
 | Model | Accuracy | Precision | Recall | F1 | ROC-AUC |
 |-------|---------|----------|--------|-----|---------|
-| **Gradient Boosting** ✓ | **0.7356** | **0.8868** | **0.5917** | **0.7098** | **0.8004** |
-| XGBoost | 0.7363 | 0.8914 | 0.5894 | 0.7096 | 0.7980 |
-| Random Forest | 0.7347 | 0.8898 | 0.5873 | 0.7076 | 0.7885 |
-| Logistic Regression | 0.6983 | 0.8519 | 0.5423 | 0.6627 | 0.7377 |
+| **XGBoost** ✓ (selected by F1) | **0.7160** | **0.8404** | **0.5930** | **0.6953** | **0.7684** |
+| Gradient Boosting | 0.7161 | 0.8407 | 0.5928 | 0.6953 | 0.7669 |
+| Random Forest | 0.7178 | 0.8500 | 0.5873 | 0.6947 | 0.7685 |
+| Logistic Regression | 0.6936 | 0.8424 | 0.5404 | 0.6584 | 0.7394 |
+
+All metrics are from the **leakage-free pipeline** (Order Status excluded). Train/test split is **chronological** (80% train, 20% test).
+
+Model selection: XGBoost is selected by the highest F1 score (primary metric). XGBoost and Gradient Boosting both report F1 = 0.6953 at the displayed precision; XGBoost appears first in the F1-sorted comparison. Note: Random Forest has the highest ROC-AUC at 0.7685.
 
 ---
 
 ## Explainable AI
 
-SHAP (TreeExplainer) identifies the following as the strongest predictive factors:
+SHAP (TreeExplainer) values are computed on a sample of the test set. Top factors differ by task:
 
-1. **Days for shipment (scheduled)** — scheduling estimate is the primary signal
-2. **Shipping Mode** — Same Day shows lower risk; Standard Class higher
-3. **Order Region** — regional logistics infrastructure differences
-4. **Financial variables** — Sales, Order Item Total (moderate importance)
-5. **Temporal features** — month, day of week (seasonal patterns)
+**Regression (Random Forest) — top SHAP factors (mean |SHAP value|):**
+1. **Days for shipment (scheduled)** — strongest factor associated with predicted delivery days
+2. **Shipping Mode** — second strongest factor
+3. **order_hour** — contributes at considerably lower magnitude
+4. **Order Region** and **Type** — further contributors at lower magnitude
 
-> Note: SHAP values show feature-prediction associations, not causation.
+**Classification (XGBoost) — top SHAP factors (mean |SHAP value|):**
+1. **Days for shipment (scheduled)** — dominant factor associated with predicted late-delivery risk
+2. **Shipping Mode** — second strongest factor
+3. **Type** and **order_hour** — contribute at lower magnitude
+4. **Order Region**, **order_day**, **order_dayofweek** — modest contributors
+
+> SHAP values indicate the strength of association between a feature and model output. They do not establish causation.
 
 ---
 
@@ -214,8 +215,8 @@ SHAP (TreeExplainer) identifies the following as the strongest predictive factor
 
 1. **54.8% of shipments are late** — systemic, not isolated
 2. Standard Class shipping drives the majority of late deliveries by volume
-3. The Gradient Boosting classifier achieves ROC-AUC = 0.800 using pre-delivery info only
-4. Scheduled delivery days is the strongest pre-delivery predictor
+3. The XGBoost classifier achieves ROC-AUC ≈ 0.768 using pre-delivery info only (leakage-free); Random Forest has the highest ROC-AUC at 0.7685
+4. Scheduled delivery days is the strongest pre-delivery predictor (top SHAP factor in both tasks)
 5. Same Day delivery has the lowest late rate but is underutilised (~5% of shipments)
 
 ---
@@ -223,10 +224,10 @@ SHAP (TreeExplainer) identifies the following as the strongest predictive factor
 ## Business Recommendations
 
 1. Deploy the predictive model at order confirmation to assign risk scores in real-time
-2. Revise Standard Class SLA agreements with logistics partners
+2. Review Standard Class SLA performance with logistics partners; explore carrier diversification where evidence supports it
 3. Implement risk-tiered intervention: HIGH → dispatch alert; MEDIUM → customer notification
-4. Recalibrate scheduling estimates using model predictions
-5. Automatic mode upgrades for high-value Corporate segment orders
+4. Use model predictions to flag cases where predicted delivery days exceed scheduled days
+5. Evaluate targeted expedited-shipping eligibility for high-value Corporate customers based on predicted risk and cost-benefit analysis
 
 ---
 
@@ -239,10 +240,6 @@ SHAP (TreeExplainer) identifies the following as the strongest predictive factor
 ### Environment Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/[username]/supply-chain-risk-delivery-prediction.git
-cd supply-chain-risk-delivery-prediction
-
 # Create virtual environment
 python -m venv venv
 
@@ -257,10 +254,9 @@ pip install -r requirements.txt
 
 ### Dataset Setup
 
-Download the dataset from Mendeley Data (DOI: 10.17632/8gx2fvg2k6.5) and place:
+Download the dataset from Mendeley Data (DOI: 10.17632/8gx2fvg2k6.5) and place at:
 ```
 data/raw/DataCoSupplyChainDataset.csv
-data/raw/DescriptionDataCoSupplyChain.csv
 ```
 
 ---
@@ -269,13 +265,13 @@ data/raw/DescriptionDataCoSupplyChain.csv
 
 ### 1. Train all models and generate figures
 ```bash
-python scripts/train_and_evaluate.py
+venv\Scripts\python scripts/train_and_evaluate.py
 ```
 This runs preprocessing, trains all models, generates all figures, and saves artifacts.
 
 ### 2. Run the interactive dashboard
 ```bash
-streamlit run dashboard/app.py
+venv\Scripts\streamlit run dashboard/app.py
 ```
 
 ### 3. Run the Jupyter notebook
@@ -285,18 +281,17 @@ jupyter notebook notebooks/Niveditha_SupplyChainRisk_DeliveryPrediction.ipynb
 
 ### 4. Run tests
 ```bash
-python -m pytest tests/ -v
+venv\Scripts\python -m pytest tests/ -v
 ```
 
 ### 5. Generate the DOCX report
 ```bash
-python scripts/build_report.py
+venv\Scripts\python scripts/build_report.py
 ```
 
-### 6. Single test
+### 6. Regenerate notebook
 ```bash
-python -m pytest tests/test_preprocessing.py::TestDataLoading::test_load_returns_dataframe -v
-python -m pytest tests/test_models.py::TestPredictionPipeline::test_risk_category_assignment -v
+venv\Scripts\python scripts/build_notebook.py
 ```
 
 ---
@@ -313,30 +308,30 @@ Filters in the sidebar (Market, Region, Ship Mode, Customer Segment) apply to al
 
 ---
 
-## Model Reproduction
+## Model Artifacts
+
+Saved in `models/`:
+- `best_regression_model.joblib` — Random Forest regressor
+- `best_regression_model_scaler.joblib` — StandardScaler
+- `best_regression_model_features.joblib` — 31 feature names
+- `best_classification_model.joblib` — XGBoost classifier
+- `best_classification_model_scaler.joblib` — StandardScaler
+- `best_classification_model_features.joblib` — 31 feature names
+- `training_summary.json` — all metrics
 
 To reproduce results exactly:
 1. Place raw dataset in `data/raw/`
-2. Run `python scripts/train_and_evaluate.py`
+2. Run `venv\Scripts\python scripts/train_and_evaluate.py`
 3. All random states are fixed at seed=42
 4. The chronological split is deterministic (no shuffling)
-
-Saved artifacts in `models/`:
-- `best_regression_model.joblib` — Random Forest regressor
-- `best_regression_model_scaler.joblib` — StandardScaler
-- `best_regression_model_features.joblib` — feature name list
-- `best_classification_model.joblib` — Gradient Boosting classifier
-- `best_classification_model_scaler.joblib` — StandardScaler
-- `best_classification_model_features.joblib` — feature name list
-- `training_summary.json` — all metrics
 
 ---
 
 ## Limitations
 
 - Dataset covers 2015–2018; patterns may differ in current supply chains
-- Regression R² = 0.39 — inherent randomness in logistics limits predictability
-- SHAP shows association, not causation
+- Regression R² ≈ 0.39 — inherent randomness in logistics limits predictability
+- SHAP values indicate association, not causation
 - Optimal probability thresholds (LOW/MEDIUM/HIGH) require operational cost analysis
 - Static model; production use requires periodic retraining
 
@@ -354,15 +349,15 @@ Saved artifacts in `models/`:
 
 ## Author
 
-**Niveditha**  
+**K. Niveditha Sai**  
 IBM SkillsBuild Data Analytics with AI Internship  
-Programme: Graduate-Level Data Analytics
+Programme: Graduate-Level Data Analytics | Year: 2026
 
 ---
 
 ## Citation
 
-If you use this project or dataset:
+If you use this dataset:
 
 ```
 Constante, F., Silva, F., & Pereira, A. (2019).
